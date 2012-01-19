@@ -1,0 +1,38 @@
+{
+  "name": "quodsi",
+  "preferGlobal": "false",
+  "version": "0.0.1",
+  "author": "Sergio Ramos <mail@sergioramos.me>",
+  "description": "markdown core engine with git and dropbox sync",
+  "main": "./index.js",
+	"scripts": {
+	    "test": ""
+	  },
+  "repository": {
+    "type": "git",
+    "url": ""
+  },
+  "keywords": [
+    "markdown",
+    "github",
+    "dropbox",
+		"git",
+		"md"
+  ],
+  "dependencies" : {
+		"watch" : "0.5.0",
+		"github-flavored-markdown" : "1.0.0",
+		"sugar" : "1.1.3",
+		"arca" : "1.0.3"
+  },
+  "noAnalyze": true,
+  "devDependencies": {
+    "mocha" :  "0.9.0"
+  },
+  "bundleDependencies": [
+  ],
+  "license": "",
+  "engine": {
+    "node": ">=4.12"
+  }
+}
