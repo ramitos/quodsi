@@ -1,15 +1,12 @@
 {
   "name": "quodsi",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "author": "Sergio Ramos <mail@sergioramos.me>",
   "description": "markdown blog engine with git and dropbox sync",
-  "main": "./index.js",
-	"scripts": {
-	    "test": ""
-	  },
+  "main": "quodsi.js",
   "repository": {
     "type": "git",
-    "url": ""
+    "url": "git@github.com:ramitos/quodsi.git"
   },
   "keywords": [
     "markdown",
@@ -21,12 +18,13 @@
 		"watch": "0.5.x",
 		"github-flavored-markdown": "1.0.x",
 		"sugar": "1.2.x",
-		"arca": "2.0.x"
+		"arca": "2.0.x",
+		"pull": "2.1.x"
   },
   "devDependencies": {
     "mocha" :  "0.9.0"
   },
-  "license": "",
+  "license": "MIT",
   "engine": {
     "node": ">=4.12"
   }
