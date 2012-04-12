@@ -78,8 +78,9 @@ quodsi.prototype.parseFile = function (f, callback) {
   fs.readFile(f, 'utf-8', function(e, d) {
     if (e) throw e
     
-    var mtd = d.match(/\{([^}]*)\}/),
-        c = d.remove(mtd[0])
+    var mtd = d.match(/\{([^}]*)\}/)
+    if(!mtd) return callback(null)
+    var c = d.remove(mtd[0])
     mtd = JSON.parse(mtd[0])
     
     if(mtd.title && mtd.date) return callback({
@@ -127,7 +128,11 @@ quodsi.prototype.sort = function () {
 }
 
 quodsi.prototype.fetch = function (qty, pg) {
-  return this.entrys.inGroupsOf(qty)[pg];
+  return this.entrys.inGroupsOf(qty)[pg].compact(true);
+}
+
+quodsi.prototype.sync = function () {
+  this.engine.sync()
 }
 
 module.exports = new quodsi()
