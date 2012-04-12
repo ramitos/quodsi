@@ -1,152 +1,133 @@
+require('sugar')
+
 var file = require('file'),
-		alfred = require('alfred'),
-		watch = require('watch'),
-		stringex = require('stringex'),
-		moment = require('moment'),
-		fs = require('fs'),
-		md = require('github-flavored-markdown'),
-		d = require('debug')('quodsi');
-		require('sugar');
+    fs = require('fs'),
+    path = require('path'),
+    watch = require('watch'),
+    walker = require('walker'),
+    stringex = require('stringex'),
+    md = require('github-flavored-markdown')
 
+var quodsi = function () {}
 
-
-var quodsi = function () {};
-
-
-
-quodsi.prototype.set = function (config) {
-	d('set');
-	
-	if(!config || !config.engine || !config.link || !config.path || !config.database) throw new Error('empty or malformed configuration object');
-	
-	switch (config.engine) {
-		case 'dropbox':
-			if(!config.filetypes) throw new Error('filetypes not especified');
-			this.engine = require('arca').set(config.link, config.filetypes, config.path);
-			break;
-		case 'git':
-			this.engine = require('pull').set(config.link, config.path);
-			break;
-		default:
-			throw new Error(config.engine + ' is not a valid engine');
-	}
-	
-	this.config = config;
-	
-	alfred.open(this.config.database, function (e, db) {
-		if(e) throw e;				
-		this.db = db;
-
-		this.entry = this.db.define('entry');
-		this.entry.property('title', 'string', {optional: false});
-		this.entry.property('date', 'object', {optional: false});
-		this.entry.property('filename', 'string', {optional: false});
-		this.entry.property('content', 'string', {optional: false});
-		
-		this.entry.index('title', function (entry) {
-			return entry.title;
-		});
-		
-		this.entry.index('filename', function (entry) {
-			return entry.filename;
-		});
-		
-		this.entry.index('date', function (entry) {
-			return entry.date;
-		}, {ordered: true});
-		
-		this.watch();
-		//self.syncEngine();
-	}.bind(this));
+quodsi.prototype.set = function (conf) {
+  if(!conf || 
+     !conf.engine || 
+     !conf.link || 
+     !conf.path ||
+     (!conf.filetypes && (conf.engine === 'dropbox'))) throw new Error('empty or malformed configuration object')
+     
+  this.conf = conf
+  this.entrys = []
+  this.conf.filetypes = new RegExp(this.conf.filetypes)
+  
+  switch (conf.engine) {
+    case 'dropbox':
+      //this.engine = require('arca').set(conf.link, conf.filetypes, conf.path)
+      console.log('NOT YET FUNCTIONAL');
+      break;
+    case 'git':
+      this.engine = require('../pull').set(conf.link, conf.path, this.walk.bind(this, this.watch.bind(this)))
+      break;
+    default:
+      throw new Error(conf.engine + ' is not a valid engine')
+  }
 };
 
-
+quodsi.prototype.walk = function (callback) {
+  walker(this.conf.path).filterDir(function (dir, stat) {
+    return !dir.has('/.git')
+  }).on('file', function (f, stat) {
+    this.created(f, stat)
+  }.bind(this)).on('end', callback)
+}
 
 quodsi.prototype.watch = function () {
-	d('watch');
-		
-	watch.createMonitor(this.config.path, this.monitor.bind(this));	
-};
-
-
+  watch.createMonitor(this.conf.path, this.monitor.bind(this))
+}
 
 quodsi.prototype.monitor = function (monitor) {
-	d('monitor');
-	
-	monitor.on("created", function (file, stat) {
-		d('monitor: ' + file + ' created');
-		
-		this.parseFile(file, function (entry) {
-			entry ? this.postEntry(entry) : null;
-		}.bind(this));
-	}.bind(this));
-		
-	monitor.on("changed", function (file, current, previous) {
-		d('monitor: ' + file + ' changed');
-		
-		this.parseFile(file, function (entry) {
-			entry ? this.putEntry(entry) : null;
-		}.bind(this));
-	});
-	
-	monitor.on("removed", function (file, stat) {
-		d('monitor: ' + file + ' removed');
-		
-		this.deleteEntry(file);
-	});
-	
-	this.engine.sync();
-};
+  monitor.on('created', this.created.bind(this))
+  monitor.on('changed', this.changed.bind(this))
+  monitor.on('removed', this.removed.bind(this))
+  this.engine.sync()
+}
 
+quodsi.prototype.created = function (f, stat) {
+  this.validate(f, stat, this.parseFile.bind(this), function (ent) {
+    if(ent) this.postEntry(ent)
+  }.bind(this))
+}
 
+quodsi.prototype.changed = function (f, curr, prev) {	
+  this.validate(f, curr, this.parseFile.bind(this), function (ent) {
+    if(ent) this.putEntry(ent)
+  }.bind(this))
+}
 
-quodsi.prototype.parseFile = function (file, callback) {
-	fs.readFile(file, 'utf-8', function (e, data) {
-		if(e) throw e;
-		
-		if(metadata = data.match(/\{([^}]*)\}/)) {
-			metadata = metadata[0];
-			var content = data.remove(metadata);
-			metadata = JSON.parse(metadata);
-			
-			(metadata.title && metadata.date) ? callback({
-				content: md.parse(content),
-				title: stringex.toUrl(metadata.title),
-				date: moment(metadata.date),
-				filename: file.remove(this.config.path)
-			}) : callback(null);	
-		}	else callback(null);
-	}.bind(this));
-};
+quodsi.prototype.removed = function (f, stat) {
+  this.validate(file, stat, this.deleteEntry.bind(this));
+}
 
+quodsi.prototype.validate = function (f, stat, callback, cb) {
+  var t = path.extname(f).has(this.conf.filetypes)
+  if(stat.isFile() && path.extname(f).has(this.conf.filetypes)) callback(f, cb.bind(this))
+}
 
+quodsi.prototype.parseFile = function (f, callback) {
+  fs.readFile(f, 'utf-8', function(e, d) {
+    if (e) throw e
+    
+    var mtd = d.match(/\{([^}]*)\}/),
+        c = d.remove(mtd[0])
+    mtd = JSON.parse(mtd[0])
+    
+    if(mtd.title && mtd.date) return callback({
+      content: md.parse(c),
+      title: stringex.toUrl(mtd.title),
+      date: mtd.date.toDate(),
+      filename: f.remove(this.conf.path + '/')
+    })
+    callback(null)
+  }.bind(this))
+}
 
-quodsi.prototype.postEntry = function (entry) {
-	d('postEntry: ' + entry.title);
-	
-	console.log(entry);
-	
-	this.entry.find({title: {$eq : entry.title}}).all(function(entrys) {
-		entrys.isEmpty() ? this.entry.new(entry).save() : null;
-	}.bind(this));
-};
+quodsi.prototype.postEntry = function (ent) {
+  var exists = this.entrys.findAll(function (e) {
+    return e.title === ent.title
+  }).isEmpty()
+  
+  if(exists) {
+    this.entrys.push(ent)
+    this.sort()
+  }
+}
 
+quodsi.prototype.putEntry = function (ent) {
+  this.entrys = this.entrys.exclude(function (e) {
+    return e.title = ent.title
+  })
 
+  this.entrys.push(ent)
+  this.sort()
+}
 
-quodsi.prototype.putEntry = function (entry) {
-	
-};
+quodsi.prototype.deleteEntry = function (f) {
+  this.entrys = this.entrys.exclude(function (e) {
+    return e.filename = f
+  })
 
+  this.sort()
+}
 
+quodsi.prototype.sort = function () {
+  this.entrys.sortBy(function (e) {
+    return e.date;
+  })
+}
 
-quodsi.prototype.deleteEntry = function (file) {
-	
-};
+quodsi.prototype.fetch = function (qty, pg) {
+  return this.entrys.inGroupsOf(qty)[pg];
+}
 
-
-
-quodsi.prototype.fetch = function (quantity, page) {};
-
-
-
-module.exports = new quodsi();
+module.exports = new quodsi()
