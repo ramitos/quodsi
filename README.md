@@ -1,1 +1,1 @@
-![unmaintained](http://img.shields.io/badge/status-unmaintained-red.png)
+![deprecated](https://img.shields.io/badge/status-deprecated-red.svg?style=plastic)
